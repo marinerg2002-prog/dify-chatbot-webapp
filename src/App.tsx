@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { Send, Bot, User, Sparkles } from "lucide-react";
+import { getOrCreateUserId, sendChatMessage } from "./api/chat";
 
 interface Message {
   id: number;
@@ -17,15 +18,18 @@ function App() {
   ]);
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
+  const [error, setError] = useState("");
+  const conversationIdRef = useRef("");
+  const userIdRef = useRef(getOrCreateUserId());
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [messages, isTyping]);
+  }, [messages, isTyping, error]);
 
-  const handleSend = () => {
+  const handleSend = async () => {
     const trimmed = input.trim();
     if (!trimmed || isTyping) return;
 
@@ -36,24 +40,41 @@ function App() {
     };
     setMessages((prev) => [...prev, userMessage]);
     setInput("");
+    setError("");
     setIsTyping(true);
 
-    // UI確認用のダミー応答（Dify API連携時に置き換える）
-    setTimeout(() => {
+    try {
+      const data = await sendChatMessage({
+        query: trimmed,
+        conversationId: conversationIdRef.current,
+        user: userIdRef.current,
+      });
+
+      if (data.conversation_id) {
+        conversationIdRef.current = data.conversation_id;
+      }
+
       const aiMessage: Message = {
         id: Date.now() + 1,
         role: "ai",
-        text: "これはAIのサンプル応答です。Dify APIと連携すると、実際の回答が表示されます。",
+        text: data.answer,
       };
       setMessages((prev) => [...prev, aiMessage]);
+    } catch (err) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : "メッセージの送信に失敗しました。もう一度お試しください。";
+      setError(message);
+    } finally {
       setIsTyping(false);
-    }, 1200);
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      handleSend();
+      void handleSend();
     }
   };
 
@@ -113,11 +134,14 @@ function App() {
               <div className="flex-shrink-0 flex items-center justify-center w-9 h-9 rounded-full bg-teal-500 text-white">
                 <Bot size={18} />
               </div>
-              <div className="px-4 py-4 rounded-2xl rounded-tl-sm bg-white shadow-sm border border-slate-100">
-                <div className="flex gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-slate-300 animate-bounce [animation-delay:-0.3s]" />
-                  <span className="w-2 h-2 rounded-full bg-slate-300 animate-bounce [animation-delay:-0.15s]" />
-                  <span className="w-2 h-2 rounded-full bg-slate-300 animate-bounce" />
+              <div className="px-4 py-3 rounded-2xl rounded-tl-sm bg-white shadow-sm border border-slate-100">
+                <div className="flex items-center gap-2">
+                  <div className="flex gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-slate-300 animate-bounce [animation-delay:-0.3s]" />
+                    <span className="w-2 h-2 rounded-full bg-slate-300 animate-bounce [animation-delay:-0.15s]" />
+                    <span className="w-2 h-2 rounded-full bg-slate-300 animate-bounce" />
+                  </div>
+                  <span className="text-xs text-slate-400">入力中...</span>
                 </div>
               </div>
             </div>
@@ -128,6 +152,14 @@ function App() {
       {/* 入力欄 */}
       <div className="px-4 py-4 bg-white border-t border-slate-200">
         <div className="max-w-2xl mx-auto">
+          {error && (
+            <div
+              role="alert"
+              className="mb-3 px-4 py-3 rounded-xl bg-red-50 border border-red-200 text-sm text-red-700"
+            >
+              {error}
+            </div>
+          )}
           <div className="flex items-end gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2 focus-within:border-teal-400 focus-within:bg-white transition-colors">
             <textarea
               value={input}
@@ -141,7 +173,7 @@ function App() {
               }}
             />
             <button
-              onClick={handleSend}
+              onClick={() => void handleSend()}
               disabled={!input.trim() || isTyping}
               className="flex-shrink-0 flex items-center justify-center w-10 h-10 rounded-xl bg-teal-500 text-white hover:bg-teal-600 disabled:bg-slate-300 disabled:cursor-not-allowed transition-colors"
               aria-label="送信"
