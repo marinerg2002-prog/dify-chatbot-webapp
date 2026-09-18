@@ -1,18 +1,23 @@
 import cors from 'cors';
 import dotenv from 'dotenv';
 import express from 'express';
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const envPath = path.join(__dirname, '..', '.env');
+const distPath = path.join(__dirname, '..', 'dist');
 
 function loadEnv() {
-  dotenv.config({ path: envPath, override: true });
+  if (fs.existsSync(envPath)) {
+    dotenv.config({ path: envPath });
+  }
+
   return {
     apiKey: (process.env.DIFY_API_KEY || '').trim(),
     apiUrl: (process.env.DIFY_API_URL || 'https://api.dify.ai/v1').replace(/\/$/, ''),
-    port: process.env.PORT || 3001,
+    port: Number(process.env.PORT) || 3001,
   };
 }
 
@@ -121,7 +126,7 @@ app.post('/api/chat', async (req, res) => {
   if (!apiKey) {
     return res.status(500).json({
       error:
-        'サーバーに DIFY_API_KEY が設定されていません。.env ファイルを確認してください。',
+        'サーバーに DIFY_API_KEY が設定されていません。.env または公開先の環境変数を確認してください。',
     });
   }
 
@@ -200,8 +205,17 @@ app.post('/api/chat', async (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
+if (fs.existsSync(distPath)) {
+  app.use(express.static(distPath));
+  app.use((req, res, next) => {
+    if (req.method !== 'GET' && req.method !== 'HEAD') return next();
+    if (req.path.startsWith('/api')) return next();
+    res.sendFile(path.join(distPath, 'index.html'));
+  });
+}
+
+app.listen(PORT, '0.0.0.0', () => {
   const { apiKey } = loadEnv();
-  console.log(`API server running on http://localhost:${PORT}`);
+  console.log(`API server running on port ${PORT}`);
   console.log(`DIFY_API_KEY: ${apiKey ? 'loaded' : 'missing'}`);
 });

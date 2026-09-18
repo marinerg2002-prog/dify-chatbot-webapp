@@ -44,3 +44,31 @@ npm run dev
 - API: http://localhost:3001/
 
 `.env` は `.gitignore` に入っているため、GitHub には公開されません。
+
+## Render でインターネット公開する
+
+画面と API を同じサービスで公開します。APIキーは Render の環境変数に入れ、GitHub には上げません。
+
+1. このリポジトリの最新コードを GitHub に push する
+2. [Render](https://render.com/) に GitHub アカウントで登録する
+3. **New + → Web Service** を選ぶ
+4. リポジトリ `dify-chatbot-webapp` を接続する
+5. 次の値を入れる
+
+| 項目 | 値 |
+|---|---|
+| Language | Node |
+| Build Command | `npm install && npm run build` |
+| Start Command | `npm start` |
+
+6. **Environment Variables** に次を追加する
+
+```
+DIFY_API_KEY=自分のDify APIキー
+DIFY_API_URL=https://api.dify.ai/v1
+```
+
+7. **Deploy Web Service** を押す
+8. 発行された URL（例: `https://xxxx.onrender.com`）を開いて、チャットが動くか確認する
+
+無料枠では、しばらくアクセスがないとスリープします。最初の表示に数十秒かかることがあります。
